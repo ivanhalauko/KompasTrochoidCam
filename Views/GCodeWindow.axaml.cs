@@ -69,99 +69,53 @@ namespace KompasTrochoidCam.Views
             };
         }
 
+        public void SetToolDiameter(double diameter)
+        {
+            if (diameter > 0.01) _toolRenderer.Diameter = diameter;
+        }
+
         public void ParseAndBuildTrajectory(string gcode)
         {
             _toolPathPoints.Clear();
             _stockRenderer.Initialize();
 
-            string[] lines = gcode.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-            double lastX = 0, lastY = 0, lastZ = 50;
-            double currentFeed = 400;
+            var program = GCodeParser.Parse(gcode);
 
-            minX = minY = minZ = double.MaxValue;
-            maxX = maxY = maxZ = double.MinValue;
-            _totalTimeSeconds = 0;
+            foreach (var point in program.Points)
+                _toolPathPoints.Add(new Point3D(point.X, point.Y, point.Z, point.LineIndex));
 
-            for (int i = 0; i < lines.Length; i++)
+            if (program.HasBounds)
             {
-                string line = lines[i];
-                string[] parts = line.Split('(');
-                string cleanLine = parts[0].Trim();
-
-                if (string.IsNullOrEmpty(cleanLine)) continue;
-
-                if (line.Contains("Фрезерование d"))
-                {
-                    int dIdx = line.IndexOf("d");
-                    if (dIdx != -1) double.TryParse(line.Substring(dIdx + 1, 2), CultureInfo.InvariantCulture, out double d);
-                }
-
-                currentFeed = GetCoord(cleanLine, 'F', currentFeed);
-                double x = GetCoord(cleanLine, 'X', lastX);
-                double y = GetCoord(cleanLine, 'Y', lastY);
-                double z = GetCoord(cleanLine, 'Z', lastZ);
-
-                if (cleanLine.Contains("G0") || cleanLine.Contains("G1"))
-                {
-                    _toolPathPoints.Add(new Point3D(x, y, z, i));
-                    UpdateBounds(x, y, z);
-
-                    double dist = Math.Sqrt(Math.Pow(x - lastX, 2) + Math.Pow(y - lastY, 2) + Math.Pow(z - lastZ, 2));
-                    if (cleanLine.Contains("G0")) _totalTimeSeconds += dist / 5000.0 * 60.0;
-                    else _totalTimeSeconds += (currentFeed > 0) ? (dist / currentFeed * 60.0) : 0;
-                }
-                else if (cleanLine.Contains("G2"))
-                {
-                    double iParam = GetCoord(cleanLine, 'I', 0);
-                    double jParam = GetCoord(cleanLine, 'J', 0);
-                    double centerX = lastX + iParam;
-                    double centerY = lastY + jParam;
-                    double radius = Math.Sqrt(iParam * iParam + jParam * jParam);
-                    double startAngle = Math.Atan2(lastY - centerY, lastX - centerX);
-
-                    double arcLength = 2 * Math.PI * radius;
-                    _totalTimeSeconds += (currentFeed > 0) ? (arcLength / currentFeed * 60.0) : 0;
-
-                    for (int step = 0; step <= 12; step++)
-                    {
-                        double angle = startAngle - (step * (Math.PI * 2 / 12));
-                        double arcX = centerX + Math.Cos(angle) * radius;
-                        double arcY = centerY + Math.Sin(angle) * radius;
-                        _toolPathPoints.Add(new Point3D(arcX, arcY, z, i));
-                        UpdateBounds(arcX, arcY, z);
-                    }
-                }
-                lastX = x; lastY = y; lastZ = z;
+                minX = program.MinX; maxX = program.MaxX;
+                minY = program.MinY; maxY = program.MaxY;
+                minZ = program.MinZ; maxZ = program.MaxZ;
             }
+            else
+            {
+                minX = minY = minZ = 0;
+                maxX = maxY = maxZ = 0;
+            }
+
+            // Заготовка подстраивается под программу: верх Z0, низ — ниже самой глубокой точки.
+            _stockRenderer.Configure(
+                minX - 8, maxX + 8,
+                minY - 8, maxY + 8,
+                0, Math.Min(minZ, 0) - 2);
+
+            _totalTimeSeconds = program.TotalTimeSeconds;
 
             if (DataContext is GCodeWindowViewModel vm)
             {
-                vm.BoundsX = minX == double.MaxValue ? "0.0" : $"{minX:F3} : {maxX:F3} мм";
-                vm.BoundsY = minY == double.MaxValue ? "0.0" : $"{minY:F3} : {maxY:F3} мм";
-                vm.BoundsZ = minZ == double.MaxValue ? "0.0" : $"{minZ:F3} : {maxZ:F3} мм";
-                TimeSpan t = TimeSpan.FromSeconds(_totalTimeSeconds);
-                vm.EstimatedTime = string.Format("{0:D2}:{1:D2}:{2:D2}", t.Hours, t.Minutes, t.Seconds);
+                vm.BoundsX = $"X {minX:F2} : {maxX:F2} мм";
+                vm.BoundsY = $"Y {minY:F2} : {maxY:F2} мм";
+                vm.BoundsZ = $"Z {minZ:F2} : {maxZ:F2} мм";
+                TimeSpan time = TimeSpan.FromSeconds(_totalTimeSeconds);
+                vm.EstimatedTime = string.Format("{0:D2}:{1:D2}:{2:D2}", time.Hours, time.Minutes, time.Seconds);
             }
 
             _currentSimulationIndex = 0;
             UpdateProgressText();
             ReDraw();
-        }
-
-        private void UpdateBounds(double x, double y, double z)
-        {
-            if (x < minX) minX = x; if (x > maxX) maxX = x;
-            if (y < minY) minY = y; if (y > maxY) maxY = y;
-            if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
-        }
-
-        private double GetCoord(string line, char axis, double defaultValue)
-        {
-            int idx = line.IndexOf(axis);
-            if (idx == -1) return defaultValue;
-            int endIdx = line.IndexOf(' ', idx);
-            string valStr = endIdx == -1 ? line.Substring(idx + 1) : line.Substring(idx + 1, endIdx - idx - 1);
-            return double.TryParse(valStr, CultureInfo.InvariantCulture, out double res) ? res : defaultValue;
         }
 
         private void ReDraw()

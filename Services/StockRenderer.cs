@@ -1,21 +1,33 @@
-﻿using Avalonia.Controls;
+using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Media;
 using System;
 
 namespace KompasTrochoidCam.Services
 {
+    /// <summary>Заготовка как карта высот: съём материала фрезой и отрисовка сетки.</summary>
     public class StockRenderer
     {
         private const int GridSize = 100;
-        private double[,] _heightGrid = new double[GridSize, GridSize];
-        private bool _isInitialized = false;
+        private readonly double[,] _heightGrid = new double[GridSize, GridSize];
+        private bool _isInitialized;
 
-        private readonly double _stockMinX = -55.0;
-        private readonly double _stockMaxX = 55.0;
-        private readonly double _stockMinY = -70.0;
-        private readonly double _stockMaxY = 70.0;
-        private readonly double _stockThickness = 20.0;
+        public double MinX { get; private set; } = -55.0;
+        public double MaxX { get; private set; } = 55.0;
+        public double MinY { get; private set; } = -70.0;
+        public double MaxY { get; private set; } = 70.0;
+        public double TopZ { get; private set; } = 0.0;
+        public double BottomZ { get; private set; } = -20.0;
+
+        /// <summary>Настройка размеров заготовки под конкретную программу.</summary>
+        public void Configure(double minX, double maxX, double minY, double maxY, double topZ, double bottomZ)
+        {
+            if (maxX - minX > 0.01) { MinX = minX; MaxX = maxX; }
+            if (maxY - minY > 0.01) { MinY = minY; MaxY = maxY; }
+            TopZ = topZ;
+            BottomZ = Math.Min(bottomZ, topZ - 0.5);
+            Initialize();
+        }
 
         public void Initialize()
         {
@@ -23,41 +35,34 @@ namespace KompasTrochoidCam.Services
             {
                 for (int y = 0; y < GridSize; y++)
                 {
-                    _heightGrid[x, y] = _stockThickness;
+                    _heightGrid[x, y] = TopZ;
                 }
             }
             _isInitialized = true;
         }
 
-        /// <summary>
-        /// Математика вычитания объема фрезы из тела заготовки Д16Т
-        /// </summary>
+        /// <summary>Вычитание объёма фрезы из тела заготовки (карта высот).</summary>
         public void CutMaterial(double toolX, double toolY, double toolZ, double toolRadius)
         {
             if (!_isInitialized) Initialize();
 
             for (int x = 0; x < GridSize; x++)
             {
-                double physicalX = _stockMinX + ((double)x / GridSize) * (_stockMaxX - _stockMinX);
+                double physicalX = MinX + ((double)x / GridSize) * (MaxX - MinX);
                 for (int y = 0; y < GridSize; y++)
                 {
-                    double physicalY = _stockMinY + ((double)y / GridSize) * (_stockMaxY - _stockMinY);
+                    double physicalY = MinY + ((double)y / GridSize) * (MaxY - MinY);
                     double distance = Math.Sqrt(Math.Pow(physicalX - toolX, 2) + Math.Pow(physicalY - toolY, 2));
 
-                    if (distance <= toolRadius)
-                    {
-                        if (toolZ < _heightGrid[x, y])
-                        {
-                            _heightGrid[x, y] = toolZ < 0 ? 0 : toolZ;
-                        }
-                    }
+                    if (distance > toolRadius) continue;
+
+                    double cutZ = Math.Max(toolZ, BottomZ);
+                    if (cutZ < _heightGrid[x, y]) _heightGrid[x, y] = cutZ;
                 }
             }
         }
 
-        /// <summary>
-        /// Отрисовка контрастной 3D-сетки: светлая заготовка + темный прорезанный паз
-        /// </summary>
+        /// <summary>Отрисовка светлой заготовки и тёмных прорезанных участков.</summary>
         public void Render(Canvas canvas, CamSceneContext ctx)
         {
             if (!_isInitialized) Initialize();
@@ -75,13 +80,13 @@ namespace KompasTrochoidCam.Services
 
                     for (int y = 0; y < GridSize; y += 2)
                     {
-                        double physicalX = _stockMinX + ((double)x / GridSize) * (_stockMaxX - _stockMinX);
-                        double physicalY = _stockMinY + ((double)y / GridSize) * (_stockMaxY - _stockMinY);
+                        double physicalX = MinX + ((double)x / GridSize) * (MaxX - MinX);
+                        double physicalY = MinY + ((double)y / GridSize) * (MaxY - MinY);
                         double physicalZ = _heightGrid[x, y];
 
                         var pScreen = ctx.Project3D(physicalX, physicalY, physicalZ, canvas.Bounds.Width, canvas.Bounds.Height);
 
-                        if (physicalZ < _stockThickness - 0.01)
+                        if (physicalZ < TopZ - 0.01)
                         {
                             if (isCutFirst) { cutCtx.BeginFigure(pScreen, false); isCutFirst = false; }
                             cutCtx.LineTo(pScreen);

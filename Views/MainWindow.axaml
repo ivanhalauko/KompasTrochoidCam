@@ -1,81 +1,428 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-       xmlns:vm="using:KompasTrochoidCam.ViewModels"
+        xmlns:vm="using:KompasTrochoidCam.ViewModels"
+        xmlns:models="using:KompasTrochoidCam.Models"
         x:Class="KompasTrochoidCam.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Title="iMachining-Mini Плагин для КОМПАС-3D"
-        Width="400" Height="450" WindowStartupLocation="CenterScreen">
+        Title="TrochoidCam — трохоидальная обработка по Z-уровням"
+        Width="1360" Height="870" MinWidth="1100" MinHeight="680"
+        WindowStartupLocation="CenterScreen"
+        Background="#F6F8FA">
 
   <Design.DataContext>
     <vm:MainWindowViewModel/>
   </Design.DataContext>
 
-  <StackPanel Margin="20" Spacing="15">
-    <TextBlock Text="Настройка трохоидального фрезерования" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center"/>
+  <Window.Styles>
+    <Style Selector="TextBlock.fieldLabel">
+      <Setter Property="FontSize" Value="11"/>
+      <Setter Property="Foreground" Value="#57606A"/>
+      <Setter Property="Margin" Value="0,5,0,2"/>
+    </Style>
+    <Style Selector="TextBox.field">
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="Padding" Value="6,3"/>
+      <Setter Property="MinHeight" Value="28"/>
+    </Style>
+    <Style Selector="Button.tool">
+      <Setter Property="FontSize" Value="11"/>
+      <Setter Property="Padding" Value="8,4"/>
+      <Setter Property="Margin" Value="0,0,4,4"/>
+    </Style>
+    <Style Selector="Border.panel">
+      <Setter Property="Background" Value="White"/>
+      <Setter Property="BorderBrush" Value="#D8DEE4"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="5"/>
+      <Setter Property="Padding" Value="10"/>
+      <Setter Property="Margin" Value="0,0,0,8"/>
+    </Style>
+    <Style Selector="TextBlock.sectionTitle">
+      <Setter Property="FontWeight" Value="Bold"/>
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="Margin" Value="0,0,0,4"/>
+    </Style>
+  </Window.Styles>
 
-    <!-- Статус подключения с возможностью копирования текста -->
-    <Border Background="#EAEAEA" CornerRadius="5" Padding="10">
-      <Grid ColumnDefinitions="Auto, *">
-        <TextBlock Grid.Column="0" Text="Статус КОМПАС: " FontWeight="Bold" VerticalAlignment="Center"/>
+  <Grid RowDefinitions="Auto,*,Auto">
 
-        <!-- Используем TextBox вместо TextBlock для возможности выделения текста -->
-        <TextBox Grid.Column="1"
-                 Text="{Binding ConnectionStatus}"
-                 Foreground="{Binding StatusColor}"
-                 IsReadOnly="True"
-                 BorderThickness="0"
-                 Background="Transparent"
-                 TextWrapping="Wrap"
-                 Padding="0"
-                 Margin="5,0,0,0"
-                 VerticalAlignment="Center"/>
+    <!-- ===== Верхняя панель ===== -->
+    <Border Grid.Row="0" Background="White" BorderBrush="#D8DEE4" BorderThickness="0,0,0,1" Padding="12,10">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <TextBlock Text="TrochoidCam" FontSize="18" FontWeight="Bold" VerticalAlignment="Center"/>
+          <TextBlock Text="2.5D · трохоида по Z-уровням" Foreground="#57606A" VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <WrapPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+          <Button Classes="tool" Content="Подключиться к КОМПАС" Command="{Binding ConnectCommand}"
+                  Background="#0969DA" Foreground="White"/>
+          <Button Classes="tool" Content="Обновить геометрию" Command="{Binding RefreshGeometryCommand}"
+                  Background="#1A7F37" Foreground="White"/>
+          <Button Classes="tool" Content="Демо-деталь" Command="{Binding LoadDemoGeometryCommand}"/>
+          <Button Classes="tool" Content="Открыть план" Command="{Binding OpenPlanCommand}"/>
+          <Button Classes="tool" Content="Сохранить план" Command="{Binding SavePlanCommand}"/>
+          <Button Classes="tool" Content="Сформировать УП" Command="{Binding GenerateProgramCommand}"
+                  Background="#1A7F37" Foreground="White"/>
+          <Button Classes="tool" Content="Симулятор" Command="{Binding ShowSimulatorCommand}"
+                  Background="#8250DF" Foreground="White"/>
+        </WrapPanel>
       </Grid>
     </Border>
 
+    <!-- ===== Рабочая область ===== -->
+    <Grid Grid.Row="1" ColumnDefinitions="340,*,380">
 
-    <!-- Параметры инструмента -->
-    <Grid ColumnDefinitions="*, *" RowDefinitions="Auto, Auto, Auto, Auto" Margin="0,10,0,0">
-      <TextBlock Grid.Row="0" Grid.Column="0" Text="Диаметр фрезы (мм):" VerticalAlignment="Center" Margin="0,5"/>
-      <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding ToolDiameter}" Margin="0,5"/>
+      <!-- Левая панель: дерево плана -->
+      <Border Grid.Column="0" Background="#FAFBFC" BorderBrush="#D8DEE4" BorderThickness="0,0,1,0">
+        <Grid RowDefinitions="Auto,*,Auto">
+          <StackPanel Grid.Row="0" Margin="10,10,10,4" Spacing="4">
+            <TextBlock Text="План фрезерной обработки" FontWeight="Bold" FontSize="12"/>
+            <WrapPanel>
+              <Button Classes="tool" Content="+ Операция" Command="{Binding Tree.AddOperationCommand}"/>
+              <Button Classes="tool" Content="+ Инструмент" Command="{Binding Tree.AddToolCommand}"/>
+              <Button Classes="tool" Content="Удалить" Command="{Binding Tree.DeleteNodeCommand}"/>
+              <Button Classes="tool" Content="▲" Command="{Binding Tree.MoveUpCommand}"/>
+              <Button Classes="tool" Content="▼" Command="{Binding Tree.MoveDownCommand}"/>
+            </WrapPanel>
+          </StackPanel>
 
-      <TextBlock Grid.Row="1" Grid.Column="0" Text="Шаг трохоиды Ae (мм):" VerticalAlignment="Center" Margin="0,5"/>
-      <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding TrochoidStep}" Margin="0,5"/>
+          <ListBox Grid.Row="1"
+                   ItemsSource="{Binding Tree.Rows}"
+                   SelectedItem="{Binding Tree.SelectedNode, Mode=TwoWay}"
+                   Background="Transparent"
+                   BorderThickness="0"
+                   Padding="4"
+                   ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ContextMenu>
+              <ContextMenu>
+                <MenuItem Header="Добавить операцию" Command="{Binding Tree.AddOperationCommand}"/>
+                <MenuItem Header="Добавить инструмент" Command="{Binding Tree.AddToolCommand}"/>
+                <Separator/>
+                <MenuItem Header="Переименовать" Command="{Binding Tree.StartRenameCommand}"/>
+                <MenuItem Header="Выше" Command="{Binding Tree.MoveUpCommand}"/>
+                <MenuItem Header="Ниже" Command="{Binding Tree.MoveDownCommand}"/>
+                <Separator/>
+                <MenuItem Header="Удалить" Command="{Binding Tree.DeleteNodeCommand}"/>
+              </ContextMenu>
+            </ListBox.ContextMenu>
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:PlanTreeNode">
+                <Grid ColumnDefinitions="Auto,*" Background="Transparent"
+                      PointerPressed="TreeRow_PointerPressed"
+                      DoubleTapped="TreeRow_DoubleTapped">
+                  <Button Grid.Column="0"
+                          Content="{Binding ExpandGlyph}"
+                          Command="{Binding Owner.ToggleExpandCommand}"
+                          CommandParameter="{Binding}"
+                          Background="Transparent"
+                          BorderThickness="0"
+                          Padding="0"
+                          Width="18" Height="22"
+                          FontSize="10"
+                          VerticalAlignment="Top"/>
+                  <StackPanel Grid.Column="1" Margin="{Binding IndentMargin}" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Title}"
+                               FontWeight="{Binding TitleWeight}"
+                               FontSize="12"
+                               TextTrimming="CharacterEllipsis"
+                               IsVisible="{Binding !IsEditing}"/>
+                    <TextBox Text="{Binding EditName, Mode=TwoWay}"
+                             IsVisible="{Binding IsEditing}"
+                             FontSize="12"
+                             Padding="4,2"
+                             MinHeight="24"
+                             AttachedToVisualTree="TreeRowEditor_Attached"
+                             LostFocus="TreeRowEditor_LostFocus"
+                             KeyDown="TreeRowEditor_KeyDown"/>
+                    <TextBlock Text="{Binding Subtitle}"
+                               FontSize="10"
+                               Foreground="#6E7781"
+                               TextTrimming="CharacterEllipsis"
+                               IsVisible="{Binding HasSubtitle}"/>
+                  </StackPanel>
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
 
-      <TextBlock Grid.Row="2" Grid.Column="0" Text="Обороты S (об/мин):" VerticalAlignment="Center" Margin="0,5"/>
-      <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SpindleSpeed}" Margin="0,5"/>
+          <Border Grid.Row="2" Background="#F0F3F7" Padding="8" BorderBrush="#D8DEE4" BorderThickness="0,1,0,0">
+            <TextBlock Text="{Binding PlanSummary}" FontSize="10" Foreground="#57606A" TextWrapping="Wrap"/>
+          </Border>
+        </Grid>
+      </Border>
 
-      <TextBlock Grid.Row="3" Grid.Column="0" Text="Подача F (мм/мин):" VerticalAlignment="Center" Margin="0,5"/>
-      <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding FeedRate}" Margin="0,5"/>
+      <!-- Центр: 3D-сцена -->
+      <Border Grid.Column="1" Margin="10" CornerRadius="6" ClipToBounds="True" Background="#1B1F27">
+        <Grid>
+          <Canvas Name="PartCanvas" Background="Transparent" ClipToBounds="True"
+                  PointerPressed="Canvas_PointerPressed"
+                  PointerMoved="Canvas_PointerMoved"
+                  PointerReleased="Canvas_PointerReleased"
+                  PointerWheelChanged="Canvas_PointerWheelChanged"/>
+
+          <StackPanel Margin="12" VerticalAlignment="Top" HorizontalAlignment="Left" Spacing="3" IsHitTestVisible="False">
+            <TextBlock Text="{Binding DocumentTitle}" Foreground="#E6EDF3" FontWeight="Bold" FontSize="13"/>
+            <TextBlock Text="Зелёный — траектория выбранной операции · жёлтый — область обработки · серый — заготовка"
+                       Foreground="#8B949E" FontSize="10"/>
+          </StackPanel>
+
+          <StackPanel Margin="12" VerticalAlignment="Bottom" HorizontalAlignment="Left" Spacing="2" IsHitTestVisible="False">
+            <TextBlock Text="{Binding PreviewSummary}" Foreground="#3FB950" FontSize="11" FontWeight="Bold"/>
+            <TextBlock Text="{Binding RegionSummary}" Foreground="#F2CC60" FontSize="10"/>
+          </StackPanel>
+
+          <TextBlock Text="ЛКМ — вращение · СКМ — панорама · колесо — масштаб"
+                     Foreground="#6E7681" FontSize="10"
+                     HorizontalAlignment="Right" VerticalAlignment="Top" Margin="12"
+                     IsHitTestVisible="False"/>
+        </Grid>
+      </Border>
+
+      <!-- Правая панель: свойства -->
+      <Border Grid.Column="2" Background="#FAFBFC" BorderBrush="#D8DEE4" BorderThickness="1,0,0,0">
+        <ScrollViewer Padding="10" VerticalScrollBarVisibility="Auto">
+          <StackPanel>
+
+            <!-- Сводка проекта -->
+            <Border Classes="panel">
+              <StackPanel Spacing="3">
+                <TextBlock Classes="sectionTitle" Text="Проект"/>
+                <TextBlock Text="{Binding PlanSummary}" FontSize="11" Foreground="#57606A" TextWrapping="Wrap"/>
+                <TextBlock Text="{Binding GeometryStatus}" FontSize="11" Foreground="#57606A" TextWrapping="Wrap"/>
+                <TextBlock Text="{Binding RegionSummary}" FontSize="11" Foreground="#57606A" TextWrapping="Wrap"/>
+                <TextBlock Text="{Binding ProgramSummary}" FontSize="11" Foreground="#8250DF" TextWrapping="Wrap"/>
+              </StackPanel>
+            </Border>
+
+            <!-- Операция -->
+            <Border Classes="panel" IsVisible="{Binding Tree.IsOperationSelected}">
+              <StackPanel>
+                <TextBlock Classes="sectionTitle" Text="Операция фрезерования"/>
+
+                <TextBlock Classes="fieldLabel" Text="Название"/>
+                <TextBox Classes="field" Text="{Binding Tree.SelectedOperation.Name, Mode=TwoWay}"/>
+
+                <TextBlock Classes="fieldLabel" Text="Инструмент"/>
+                <ComboBox HorizontalAlignment="Stretch"
+                          ItemsSource="{Binding Tree.Tools}"
+                          SelectedItem="{Binding Tree.SelectedOperationTool, Mode=TwoWay}">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="models:ToolDefinition">
+                      <TextBlock Text="{Binding DisplayName}"/>
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+
+                <Grid ColumnDefinitions="*,*" Margin="0,2,0,0">
+                  <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                    <TextBlock Classes="fieldLabel" Text="Обороты S, об/мин"/>
+                    <TextBox Classes="field" Text="{Binding Tree.SelectedOperation.SpindleSpeed, Mode=TwoWay}"/>
+                  </StackPanel>
+                  <StackPanel Grid.Column="1">
+                    <TextBlock Classes="fieldLabel" Text="Подача F, мм/мин"/>
+                    <TextBox Classes="field" Text="{Binding Tree.SelectedOperation.Feed, Mode=TwoWay}"/>
+                  </StackPanel>
+                </Grid>
+
+                <Grid ColumnDefinitions="*,*" Margin="0,2,0,0">
+                  <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                    <TextBlock Classes="fieldLabel" Text="Коррекция r, мм"/>
+                    <TextBox Classes="field" Text="{Binding Tree.SelectedOperation.Correction, Mode=TwoWay}"/>
+                  </StackPanel>
+                  <StackPanel Grid.Column="1">
+                    <TextBlock Classes="fieldLabel" Text="Шаг трохоиды Ae, мм"/>
+                    <TextBox Classes="field" Text="{Binding Tree.SelectedOperation.StepAe, Mode=TwoWay}"/>
+                  </StackPanel>
+                </Grid>
+
+                <Grid ColumnDefinitions="*,*" Margin="0,2,0,0">
+                  <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                    <TextBlock Classes="fieldLabel" Text="Шаг по глубине ΔZ, мм"/>
+                    <TextBox Classes="field" Text="{Binding Tree.SelectedOperation.StepZ, Mode=TwoWay}"/>
+                  </StackPanel>
+                  <StackPanel Grid.Column="1">
+                    <TextBlock Classes="fieldLabel" Text="Припуск на стенку, мм"/>
+                    <TextBox Classes="field" Text="{Binding Tree.SelectedOperation.Allowance, Mode=TwoWay}"/>
+                  </StackPanel>
+                </Grid>
+
+                <Grid ColumnDefinitions="*,*" Margin="0,2,0,0">
+                  <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                    <TextBlock Classes="fieldLabel" Text="Z начала (деталь), мм"/>
+                    <TextBox Classes="field" Text="{Binding Tree.SelectedOperation.ZTop, Mode=TwoWay}"/>
+                  </StackPanel>
+                  <StackPanel Grid.Column="1">
+                    <TextBlock Classes="fieldLabel" Text="Z дна (деталь), мм"/>
+                    <TextBox Classes="field" Text="{Binding Tree.SelectedOperation.ZBottom, Mode=TwoWay}"/>
+                  </StackPanel>
+                </Grid>
+
+                <Grid ColumnDefinitions="*,*" Margin="0,2,0,0">
+                  <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                    <TextBlock Classes="fieldLabel" Text="Радиальный шаг, мм"/>
+                    <TextBox Classes="field" Text="{Binding Tree.SelectedOperation.RadialStep, Mode=TwoWay}"/>
+                  </StackPanel>
+                  <StackPanel Grid.Column="1">
+                    <TextBlock Classes="fieldLabel" Text="Безопасная Z, мм"/>
+                    <TextBox Classes="field" Text="{Binding Tree.SelectedOperation.SafeZ, Mode=TwoWay}"/>
+                  </StackPanel>
+                </Grid>
+
+                <TextBlock Classes="fieldLabel" Text="Подача врезания, мм/мин"/>
+                <TextBox Classes="field" Text="{Binding Tree.SelectedOperation.PlungeFeed, Mode=TwoWay}"/>
+
+                <CheckBox Content="Операция включена" IsChecked="{Binding Tree.SelectedOperation.IsEnabled, Mode=TwoWay}" Margin="0,8,0,0"/>
+                <TextBlock Text="{Binding Tree.SelectedOperation.Summary}" FontSize="11" Foreground="#6E7781" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                <TextBlock Text="{Binding Tree.SelectedOperation.Strategy}" FontSize="11" Foreground="#0969DA" TextWrapping="Wrap"/>
+              </StackPanel>
+            </Border>
+
+            <!-- Инструмент -->
+            <Border Classes="panel" IsVisible="{Binding Tree.IsToolSelected}">
+              <StackPanel>
+                <TextBlock Classes="sectionTitle" Text="Инструмент"/>
+                <Grid ColumnDefinitions="*,*" Margin="0,2,0,0">
+                  <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                    <TextBlock Classes="fieldLabel" Text="Номер T"/>
+                    <TextBox Classes="field" Text="{Binding Tree.SelectedTool.Number, Mode=TwoWay}"/>
+                  </StackPanel>
+                  <StackPanel Grid.Column="1">
+                    <TextBlock Classes="fieldLabel" Text="Диаметр, мм"/>
+                    <TextBox Classes="field" Text="{Binding Tree.SelectedTool.Diameter, Mode=TwoWay}"/>
+                  </StackPanel>
+                </Grid>
+                <TextBlock Classes="fieldLabel" Text="Название"/>
+                <TextBox Classes="field" Text="{Binding Tree.SelectedTool.Name, Mode=TwoWay}"/>
+                <TextBlock Classes="fieldLabel" Text="Тип инструмента"/>
+                <TextBox Classes="field" Text="{Binding Tree.SelectedTool.TypeName, Mode=TwoWay}"/>
+                <TextBlock Classes="fieldLabel" Text="Длина рабочей части, мм"/>
+                <TextBox Classes="field" Text="{Binding Tree.SelectedTool.Length, Mode=TwoWay}"/>
+                <TextBlock Text="{Binding Tree.SelectedTool.Caption}" FontSize="11" Foreground="#6E7781" TextWrapping="Wrap" Margin="0,6,0,0"/>
+              </StackPanel>
+            </Border>
+
+            <!-- Заготовка -->
+            <Border Classes="panel" IsVisible="{Binding Tree.IsStockSelected}">
+              <StackPanel>
+                <TextBlock Classes="sectionTitle" Text="Заготовка, мм (координаты детали)"/>
+                <Grid ColumnDefinitions="*,*" Margin="0,2,0,0">
+                  <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                    <TextBlock Classes="fieldLabel" Text="X мин"/>
+                    <TextBox Classes="field" Text="{Binding Plan.Stock.MinX, Mode=TwoWay}"/>
+                  </StackPanel>
+                  <StackPanel Grid.Column="1">
+                    <TextBlock Classes="fieldLabel" Text="X макс"/>
+                    <TextBox Classes="field" Text="{Binding Plan.Stock.MaxX, Mode=TwoWay}"/>
+                  </StackPanel>
+                </Grid>
+                <Grid ColumnDefinitions="*,*" Margin="0,2,0,0">
+                  <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                    <TextBlock Classes="fieldLabel" Text="Y мин"/>
+                    <TextBox Classes="field" Text="{Binding Plan.Stock.MinY, Mode=TwoWay}"/>
+                  </StackPanel>
+                  <StackPanel Grid.Column="1">
+                    <TextBlock Classes="fieldLabel" Text="Y макс"/>
+                    <TextBox Classes="field" Text="{Binding Plan.Stock.MaxY, Mode=TwoWay}"/>
+                  </StackPanel>
+                </Grid>
+                <Grid ColumnDefinitions="*,*" Margin="0,2,0,0">
+                  <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                    <TextBlock Classes="fieldLabel" Text="Z верх"/>
+                    <TextBox Classes="field" Text="{Binding Plan.Stock.TopZ, Mode=TwoWay}"/>
+                  </StackPanel>
+                  <StackPanel Grid.Column="1">
+                    <TextBlock Classes="fieldLabel" Text="Z низ"/>
+                    <TextBox Classes="field" Text="{Binding Plan.Stock.BottomZ, Mode=TwoWay}"/>
+                  </StackPanel>
+                </Grid>
+                <TextBlock Classes="fieldLabel" Text="Припуск заготовки по контуру, мм"/>
+                <TextBox Classes="field" Text="{Binding Plan.Stock.Margin, Mode=TwoWay}"/>
+                <TextBlock Text="{Binding Plan.Stock.SizeText}" FontSize="11" Foreground="#6E7781" Margin="0,6,0,0"/>
+              </StackPanel>
+            </Border>
+
+            <!-- Область обработки -->
+            <Border Classes="panel" IsVisible="{Binding Tree.IsRegionSelected}">
+              <StackPanel Spacing="4">
+                <TextBlock Classes="sectionTitle" Text="Область обработки"/>
+                <TextBlock Text="Отметьте грани и рёбра, ограничивающие зону съёма металла. Объём считается как площадь × глубина."
+                           FontSize="10" Foreground="#6E7781" TextWrapping="Wrap"/>
+
+                <TextBlock Classes="fieldLabel" Text="Грани"/>
+                <ListBox ItemsSource="{Binding FaceItems}" MaxHeight="200" Background="White">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:GeometryItem">
+                      <Grid ColumnDefinitions="Auto,*">
+                        <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected, Mode=TwoWay}"/>
+                        <StackPanel Grid.Column="1" Margin="6,0,0,0">
+                          <TextBlock Text="{Binding Title}" FontSize="11"/>
+                          <TextBlock Text="{Binding Details}" FontSize="10" Foreground="#6E7781"/>
+                        </StackPanel>
+                      </Grid>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+
+                <WrapPanel Margin="0,4,0,0">
+                  <Button Classes="tool" Content="Все грани" Command="{Binding SelectAllFacesCommand}"/>
+                  <Button Classes="tool" Content="Снять выделение" Command="{Binding ClearRegionSelectionCommand}"/>
+                  <Button Classes="tool" Content="Z дна по грани" Command="{Binding ApplyFaceZCommand}"/>
+                </WrapPanel>
+
+                <TextBlock Classes="fieldLabel" Text="Рёбра"/>
+                <ListBox ItemsSource="{Binding EdgeItems}" MaxHeight="160" Background="White">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:GeometryItem">
+                      <Grid ColumnDefinitions="Auto,*">
+                        <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected, Mode=TwoWay}"/>
+                        <StackPanel Grid.Column="1" Margin="6,0,0,0">
+                          <TextBlock Text="{Binding Title}" FontSize="11"/>
+                          <TextBlock Text="{Binding Details}" FontSize="10" Foreground="#6E7781"/>
+                        </StackPanel>
+                      </Grid>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+
+                <TextBlock Text="{Binding RegionSummary}" FontSize="11" Foreground="#1A7F37" FontWeight="Bold" TextWrapping="Wrap" Margin="0,4,0,0"/>
+              </StackPanel>
+            </Border>
+
+            <!-- Импорт -->
+            <Border Classes="panel">
+              <StackPanel Spacing="4">
+                <TextBlock Classes="sectionTitle" Text="Импорт готовой УП"/>
+                <TextBlock Text="Постпроцессор выбирается для протокола импорта; преобразование кода не выполняется."
+                           FontSize="10" Foreground="#6E7781" TextWrapping="Wrap"/>
+                <ComboBox HorizontalAlignment="Stretch"
+                          ItemsSource="{Binding AvailablePosts}"
+                          SelectedItem="{Binding SelectedPost, Mode=TwoWay}"/>
+                <Button Content="Открыть .nc / .ngc"
+                        Command="{Binding OpenGCodeFileCommand}"
+                        IsEnabled="{Binding IsPostSelected}"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        Margin="0,4,0,0"/>
+              </StackPanel>
+            </Border>
+
+            <TextBlock Text="Подсказка: двойной щелчок по узлу дерева — переименование. Правая кнопка — контекстное меню."
+                       FontSize="10" Foreground="#8B949E" TextWrapping="Wrap" Margin="2,0,0,10"/>
+
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
     </Grid>
 
-    <!-- Кнопки управления -->
-    <Button Content="Подключиться к КОМПАС" Command="{Binding ConnectCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Background="#2196F3" Foreground="White" Height="35"/>
-    <Button Content="Считать контур и создать .ngc" Command="{Binding GenerateGCodeCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Background="#4CAF50" Foreground="White" Height="35"/>
-
-    <!-- Блок выбора постпроцессора и импорта файла -->
-    <Border Background="#F5F5F5" CornerRadius="5" Padding="10" Margin="0,10,0,0">
-      <StackPanel Spacing="8">
-        <TextBlock Text="Постпроцессор станка:" FontWeight="Bold" FontSize="12"/>
-
-        <!-- Выпадающий список прямо на главной форме -->
-        <ComboBox ItemsSource="{Binding AvailablePosts}"
-                  SelectedItem="{Binding SelectedPost}"
-                  HorizontalAlignment="Stretch"
-                  Height="32"/>
-
-        <!-- Кнопка импорта. Она станет активной, только когда выбран станок -->
-        <Button Content="Открыть сторонний G-код (.nc / .ngc)"
-                Command="{Binding OpenGCodeFileCommand}"
-                IsEnabled="{Binding IsPostSelected}"
-                HorizontalAlignment="Stretch"
-                HorizontalContentAlignment="Center"
-                Background="#9C27B0"
-                Foreground="White"
-                Height="35"/>
-      </StackPanel>
+    <!-- ===== Статус ===== -->
+    <Border Grid.Row="2" Background="White" BorderBrush="#D8DEE4" BorderThickness="0,1,0,0" Padding="12,6">
+      <Grid ColumnDefinitions="Auto,*">
+        <TextBlock Grid.Column="0" Text="Статус: " FontWeight="Bold" FontSize="11" VerticalAlignment="Center"/>
+        <TextBlock Grid.Column="1" Text="{Binding ConnectionStatus}"
+                   Foreground="{Binding StatusColor}"
+                   FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center"/>
+      </Grid>
     </Border>
-
-
-
-  </StackPanel>
+  </Grid>
 </Window>
