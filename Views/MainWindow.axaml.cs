@@ -3,6 +3,7 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -167,6 +168,25 @@ public partial class MainWindow : Window
     {
         if (sender is Control control && control.DataContext is PlanTreeNode node && _viewModel != null)
             _viewModel.Tree.SelectedNode = node;
+    }
+
+    /// <summary>Копирует строку статуса целиком в буфер обмена.</summary>
+    private async void CopyStatus_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_viewModel == null) return;
+
+        var clipboard = Clipboard;
+        if (clipboard == null) return;
+
+        try
+        {
+            await clipboard.SetTextAsync(_viewModel.ConnectionStatus);
+            if (sender is Button button) button.Content = "Скопировано";
+        }
+        catch
+        {
+            // буфер обмена может быть занят другим приложением
+        }
     }
 
     private void TreeRow_DoubleTapped(object? sender, TappedEventArgs e)

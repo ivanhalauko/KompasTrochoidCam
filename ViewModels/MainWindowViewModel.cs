@@ -175,11 +175,42 @@ namespace KompasTrochoidCam.ViewModels
         [RelayCommand]
         private void Connect()
         {
-            bool connected = _kompasService.Connect(out string message);
-            ConnectionStatus = message;
-            StatusColor = connected ? Brushes.Green : Brushes.Red;
+            try
+            {
+                bool connected = _kompasService.Connect(out string message);
+                ConnectionStatus = message;
+                StatusColor = connected ? Brushes.Green : Brushes.Red;
 
-            if (connected) RefreshGeometry();
+                if (connected) RefreshGeometry();
+            }
+            catch (Exception ex)
+            {
+                // Сбой подключения не должен закрывать приложение.
+                ConnectionStatus = $"Ошибка подключения: {ex.Message}";
+                StatusColor = Brushes.Red;
+            }
+        }
+
+        /// <summary>Открывает отчёт о последней попытке подключения (ProgID, ROT, права, HRESULT).</summary>
+        [RelayCommand]
+        private void ShowConnectDiagnostics()
+        {
+            string report = _kompasService.LastDiagnostics;
+            if (string.IsNullOrWhiteSpace(report))
+                report = "Попыток подключения ещё не было. Нажмите «Подключиться к КОМПАС», затем откройте этот отчёт снова.";
+
+            var window = new Views.ConnectDiagnosticsWindow(report);
+
+            if (Avalonia.Application.Current?.ApplicationLifetime is
+                Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop &&
+                desktop.MainWindow is { } owner)
+            {
+                _ = window.ShowDialog(owner);
+            }
+            else
+            {
+                window.Show();
+            }
         }
 
         [RelayCommand]
@@ -192,10 +223,24 @@ namespace KompasTrochoidCam.ViewModels
                 return;
             }
 
-            var geometry = _kompasService.ReadPartGeometry(out string message);
+            PartGeometry geometry = new PartGeometry();
+            string message = string.Empty;
+            try
+            {
+                geometry = _kompasService.ReadPartGeometry(out message);
+            }
+            catch (Exception ex)
+            {
+                ConnectionStatus = $"Ошибка чтения геометрии: {ex.Message}";
+                StatusColor = Brushes.DarkOrange;
+                return;
+            }
+
             if (geometry.IsEmpty)
             {
-                SetStatus(message, true);
+                // Подключение при этом успешное: красный цвет здесь означал бы «нет связи».
+                ConnectionStatus = message;
+                StatusColor = Brushes.DarkOrange;
                 return;
             }
 

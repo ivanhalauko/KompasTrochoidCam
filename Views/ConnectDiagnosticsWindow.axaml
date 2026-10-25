@@ -1,0 +1,29 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="KompasTrochoidCam.Views.ConnectDiagnosticsWindow"
+        Title="Диагностика подключения к КОМПАС-3D"
+        Width="880" Height="580"
+        WindowStartupLocation="CenterOwner">
+
+  <Grid RowDefinitions="Auto,*,Auto" Margin="14">
+    <TextBlock Grid.Row="0"
+               Text="Отчёт о последней попытке подключения: какие ProgID зарегистрированы, какие объекты есть в Running Object Table, с какими правами запущены процессы. Скопируйте отчёт и приложите его к описанию проблемы."
+               TextWrapping="Wrap" FontSize="12" Foreground="#57606A" Margin="0,0,0,10"/>
+
+    <TextBox Grid.Row="1"
+             Name="ReportBox"
+             IsReadOnly="True"
+             AcceptsReturn="True"
+             FontFamily="Consolas"
+             FontSize="12"
+             TextWrapping="NoWrap"
+             VerticalContentAlignment="Top"
+             ScrollViewer.VerticalScrollBarVisibility="Auto"
+             ScrollViewer.HorizontalScrollBarVisibility="Auto"/>
+
+    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,10,0,0">
+      <Button Name="CopyButton" Content="Копировать отчёт" Click="CopyButton_Click"/>
+      <Button Name="CloseButton" Content="Закрыть" Click="CloseButton_Click" IsDefault="True"/>
+    </StackPanel>
+  </Grid>
+</Window>
